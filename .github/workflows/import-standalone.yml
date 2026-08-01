@@ -1,0 +1,51 @@
+name: 独立版コードの初回取り込み
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - IMPORT_READY
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 移行パッケージを復元
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .import/chunk-* | base64 --decode > "$RUNNER_TEMP/stock-news-folder-ready.zip"
+          echo "0551acc71bd7a7a2dd7c8d543866e073d64c95c4f4fbd24415d2de4ad55a9015  $RUNNER_TEMP/stock-news-folder-ready.zip" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/imported"
+          unzip -q "$RUNNER_TEMP/stock-news-folder-ready.zip" -d "$RUNNER_TEMP/imported"
+          test -f "$RUNNER_TEMP/imported/stock-news-folder/package.json"
+          test -f "$RUNNER_TEMP/imported/stock-news-folder/src/app/page.tsx"
+
+      - name: 独立版をリポジトリ直下へ配置
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -a --delete \
+            --exclude '.git/' \
+            --exclude '.github/workflows/import-standalone.yml' \
+            "$RUNNER_TEMP/imported/stock-news-folder/" "$GITHUB_WORKSPACE/"
+
+      - name: コードをコミット
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "株式ニュースフォルダーを独立リポジトリ化"
+          git push origin main
