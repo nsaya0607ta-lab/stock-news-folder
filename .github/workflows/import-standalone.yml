@@ -20,18 +20,33 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: 移行パッケージを取得
+      - name: 安全版の移行パッケージを取得
         shell: bash
         run: |
           set -euo pipefail
           curl --fail --location --retry 3 \
-            'https://raw.githubusercontent.com/nsaya0607ta-lab/my-app/agent/publish-stock-news-transfer/transfer/stock-news-folder-ready.zip' \
-            --output "$RUNNER_TEMP/stock-news-folder-ready.zip"
+            'https://raw.githubusercontent.com/nsaya0607ta-lab/my-app/agent/publish-stock-news-transfer-safe/transfer/stock-news-folder-ready-safe.zip' \
+            --output "$RUNNER_TEMP/stock-news-folder-ready-safe.zip"
           mkdir -p "$RUNNER_TEMP/imported"
-          unzip -q "$RUNNER_TEMP/stock-news-folder-ready.zip" -d "$RUNNER_TEMP/imported"
-          test -f "$RUNNER_TEMP/imported/stock-news-folder/package.json"
-          test -f "$RUNNER_TEMP/imported/stock-news-folder/src/app/page.tsx"
-          test -f "$RUNNER_TEMP/imported/stock-news-folder/.github/workflows/ci.yml"
+          unzip -q "$RUNNER_TEMP/stock-news-folder-ready-safe.zip" -d "$RUNNER_TEMP/imported"
+          ROOT="$RUNNER_TEMP/imported/stock-news-folder"
+          test -f "$ROOT/package.json"
+          test -f "$ROOT/src/app/page.tsx"
+          test -f "$ROOT/.github/workflows/ci.yml"
+          test -f "$ROOT/.github/workflows/stock-news-scheduler.yml"
+          ROOT="$ROOT" python - <<'PY'
+          import os
+          from pathlib import Path
+          workflow = (Path(os.environ['ROOT']) / '.github/workflows/stock-news-scheduler.yml').read_text('utf-8')
+          dollar = chr(36)
+          required = [
+              dollar + '{{ secrets.GEMINI_API_KEY }}',
+              dollar + '{{ secrets.ALPHA_VANTAGE_API_KEY }}',
+              dollar + '{{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}',
+          ]
+          if not all(marker in workflow for marker in required):
+              raise SystemExit('環境変数プレースホルダーの検査に失敗しました')
+          PY
 
       - name: 独立版をリポジトリ直下へ配置
         shell: bash
