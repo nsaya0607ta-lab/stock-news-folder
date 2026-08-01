@@ -13,21 +13,23 @@ permissions:
 jobs:
   import:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: リポジトリを取得
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: 移行パッケージを復元
+      - name: 移行パッケージを取得
         shell: bash
+        env:
+          PACKAGE_URL: "https://sdmntprkoreacentral.oaiusercontent.com/files/00000000-19d4-8206-b1ef-9675ab824514/raw?se=2026-08-01T16:14:40Z&sp=r&sv=2026-02-06&sr=b&scid=ee4662bf-48a9-5bda-ad48-593349e66225&skoid=03727f49-62d3-42ac-8350-1c0e6559d238&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-08-01T02:10:02Z&ske=2026-08-02T02:10:02Z&sks=b&skv=2026-02-06&sig=9FsIEh%2BWguNk5O0iuRmcOjj28Uh2UaCRj6H22wqBU1k%3D"
         run: |
           set -euo pipefail
-          cat .import/chunk-* | base64 --decode > "$RUNNER_TEMP/stock-news-folder-ready.zip"
-          echo "0551acc71bd7a7a2dd7c8d543866e073d64c95c4f4fbd24415d2de4ad55a9015  $RUNNER_TEMP/stock-news-folder-ready.zip" | sha256sum --check
+          curl --fail --location --retry 3 "$PACKAGE_URL" --output "$RUNNER_TEMP/stock-news-folder-standalone.zip"
+          echo "712494b637ecd1c6e80678c6dc23a569677377e3fcca322088d5a2f7a27e71b1  $RUNNER_TEMP/stock-news-folder-standalone.zip" | sha256sum --check
           mkdir -p "$RUNNER_TEMP/imported"
-          unzip -q "$RUNNER_TEMP/stock-news-folder-ready.zip" -d "$RUNNER_TEMP/imported"
+          unzip -q "$RUNNER_TEMP/stock-news-folder-standalone.zip" -d "$RUNNER_TEMP/imported"
           test -f "$RUNNER_TEMP/imported/stock-news-folder/package.json"
           test -f "$RUNNER_TEMP/imported/stock-news-folder/src/app/page.tsx"
 
@@ -37,6 +39,9 @@ jobs:
           set -euo pipefail
           rsync -a --delete \
             --exclude '.git/' \
+            --exclude 'node_modules/' \
+            --exclude '.next/' \
+            --exclude 'audit.json' \
             --exclude '.github/workflows/import-standalone.yml' \
             "$RUNNER_TEMP/imported/stock-news-folder/" "$GITHUB_WORKSPACE/"
 
