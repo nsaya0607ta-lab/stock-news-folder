@@ -1,0 +1,53 @@
+name: 銘柄ニュースの定期取得
+
+# ブラウザーを閉じていてもレポートを作成するため、サーバー側（GitHub Actions）で
+# 10分ごとに起動し、実行時刻を迎えた銘柄だけを処理する。
+# 判定はすべて購読設定のタイムゾーン（既定 Asia/Tokyo）で行う。
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stock-news-scheduler
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v5
+
+      - name: Node.jsを準備
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: 日本語フォントを準備
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+
+      - name: 依存関係をインストール
+        run: npm ci
+
+      - name: 共通処理の検証
+        run: npm run stock-news:test
+
+      - name: Chromeを準備
+        run: npx puppeteer browsers install chrome
+
+      - name: 実行時刻を迎えた銘柄のレポートを生成
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.6-flash' }}
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET || 'my-az900-app.firebasestorage.app' }}
+        run: npm run stock-news
