@@ -1,11 +1,8 @@
 name: 銘柄ニュースの定期取得
 
-# ブラウザーを閉じていてもレポートを作成するため、サーバー側（GitHub Actions）で
-# 10分ごとに起動し、実行時刻を迎えた銘柄だけを処理する。
-# 判定はすべて購読設定のタイムゾーン（既定 Asia/Tokyo）で行う。
+# 新リポジトリへのSecrets移行が完了するまでは手動実行のみ。
+# 移行完了後に schedule の10分間隔設定を戻す。
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
