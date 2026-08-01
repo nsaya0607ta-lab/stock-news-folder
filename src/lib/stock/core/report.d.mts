@@ -1,0 +1,52 @@
+import type { NewsArticle, NewsReportData } from './news.d.mts';
+import type { StockQuote } from './quote.d.mts';
+import type { Sentiment } from './taxonomy.d.mts';
+
+export type StockReport = {
+  reportId: string;
+  ticker: string;
+  companyName: string;
+  reportDate: string;
+  periodFrom: string;
+  periodTo: string;
+  generatedAt: string;
+  fileName: string;
+  language: 'ja' | 'en';
+  detail: string;
+  articleCount: number;
+  headline: string;
+  summary: string;
+  priceComment: string;
+  importance: number;
+  sentiment: Sentiment;
+  articles: NewsArticle[];
+  watchItems: string[];
+  uncertainties: string[];
+  nextEvent: { date: string; title: string };
+  sources: { title: string; url: string }[];
+  quote: StockQuote | null;
+  fetchedCount: number;
+  acceptedCount: number;
+  source: 'scheduled' | 'manual';
+  status: 'ready' | 'empty';
+  version: number;
+};
+
+export function reportId(ticker: string, reportDate: string): string;
+export function reportFileName(ticker: string, reportDate: string): string;
+export function aggregateImportance(articles: NewsArticle[]): number;
+export function aggregateSentiment(articles: NewsArticle[]): Sentiment;
+export function buildReport(input: {
+  ticker: string;
+  companyName: string;
+  reportDate: string;
+  periodFrom: string;
+  periodTo: string;
+  language?: string;
+  detail?: string;
+  news: NewsReportData;
+  quote?: StockQuote | null;
+  source?: 'scheduled' | 'manual';
+  version?: number;
+}): StockReport;
+export function reportNotificationText(report: StockReport): string;

@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* iPhone のノッチ / ホームインジケーター */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --bottom-nav-height: 58px;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    height: 100%;
+    /* 画面全体が左右に動かないようにする。
+       長いファイル名などで内容がはみ出しても横スクロールを発生させない。 */
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-surface-sub text-ink antialiased;
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+      'Noto Sans JP', 'Yu Gothic UI', Meiryo, system-ui, sans-serif;
+    /* 全画面アプリらしく、ページ全体のバウンススクロールを抑える。
+       横方向は、端からのスワイプで前後の画面へ移動してしまうのを防ぐ。 */
+    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html.dark body {
+    @apply bg-[#11161c] text-[#e6eaef];
+  }
+
+  /* 長押しメニューを使うため、iOS の標準コールアウトを無効化する */
+  .no-callout {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  select {
+    /* iOS で入力時に画面が拡大しないよう 16px 以上にする */
+    font-size: 16px;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-card border border-line bg-surface dark:border-[#2a333d] dark:bg-[#181e26];
+  }
+
+  .tap-target {
+    @apply min-h-tap min-w-tap;
+  }
+
+  .sheet-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* 一覧画面の本文。指の横移動で画面が動かないよう、縦スクロールだけを許可する。 */
+  .no-h-swipe {
+    touch-action: pan-y;
+    overscroll-behavior-x: none;
+  }
+
+  /* PDF 本文。拡大時に上下左右へ自由に動かせるようにする。
+     ブラウザーの横スワイプ (戻る/進む) には渡さない。 */
+  .pdf-surface {
+    touch-action: pan-x pan-y;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hide-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .field {
+    @apply w-full rounded-card border border-line bg-surface px-3 py-2.5 text-base text-ink
+      outline-none placeholder:text-ink-faint focus:border-brand-400 focus:ring-2 focus:ring-brand-100
+      dark:border-[#333d49] dark:bg-[#12171d] dark:text-[#e6eaef] dark:focus:ring-brand-900;
+  }
+
+  .divider {
+    @apply border-line dark:border-[#2a333d];
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-sheet-up {
+  animation: sheet-up 0.2s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-up,
+  .animate-fade-in {
+    animation: none;
+  }
+}

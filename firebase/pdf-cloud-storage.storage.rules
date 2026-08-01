@@ -1,0 +1,49 @@
+rules_version = '2';
+
+// PDFフォルダーのクラウド保管・Gemini添付・自動生成PDFで使うルール。
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // 本人の PDF 保管領域
+    match /users/{userId}/pdf-cloud/{fileName} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId)
+                   && request.resource != null
+                   && request.resource.contentType == 'application/pdf'
+                   && request.resource.size < 200 * 1024 * 1024;
+      allow delete: if isOwner(userId);
+    }
+
+    // Geminiへ送るPDF・画像の一時領域。5日後の削除は定期処理でも行う。
+    match /users/{userId}/gemini-temp/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+                            && request.resource != null
+                            && request.resource.size < 15 * 1024 * 1024
+                            && request.resource.contentType in [
+                              'application/pdf',
+                              'image/jpeg',
+                              'image/png',
+                              'image/webp'
+                            ];
+      allow delete: if isOwner(userId);
+    }
+
+    // ブラウザーを閉じている間にFirebase Adminが作成するPDF。
+    // 本人は読み取りと、取り込み後の後片付けだけ行える。
+    match /users/{userId}/gemini-generated/{fileName} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if false;
+    }
+
+    // 定期処理が作成する銘柄ニュースレポートのPDF。
+    // 作成はFirebase Adminだけ。本人は取り込みのための読み取りと削除ができる。
+    match /users/{userId}/stock-reports/{fileName} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if false;
+    }
+  }
+}

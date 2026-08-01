@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+.vercel
+.env
+.env.local
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# scripts/prepare-assets.mjs が生成する成果物
+public/pdf.worker.min.mjs
+public/pdfjs/
+public/icons/
+public/splash/

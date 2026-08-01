@@ -1,0 +1,153 @@
+rules_version = '2';
+
+// =============================================================================
+// Firestore セキュリティルール
+//
+// このファイルはリポジトリ上のドキュメントであり、置くだけでは反映されない。
+// Firebaseコンソール（Firestore Database ＞ ルール）に貼り付けるか、
+// リポジトリ直下で次を実行して反映すること（firebase.json / .firebaserc 同梱）。
+//   npx firebase-tools login
+//   npm run deploy:rules
+//
+// ★反映を忘れると、そのコレクションへの読み書きが permission-denied になる。
+//   画面上は「ルームを作成できませんでした」のような通信エラー風の表示になるため、
+//   オンライン機能が動かないときは、まずここが最新かどうかを確認すること。
+//
+// 🃏 価値観ゲームの数字の秘匿について
+//   各プレイヤーの数字は vgSecrets にサーバー側の鍵で暗号化して保管し、
+//   クライアントへは /api/valuegame?action=deal が本人のぶんだけ返す。
+//   下の vgSecrets のルールはその多重防御（読めても暗号文だが、そもそも
+//   クライアントからは読ませない）。Admin SDK（サーバー）はこのルールの
+//   対象外なので、APIからの読み書きには影響しない。
+// =============================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- 個人データ：本人だけが読み書きできる ----
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // BPの付与記録・日次集計はサーバー（Admin SDK）だけが書き込む。
+      // 本人は自分の履歴を読めるだけにして、クライアントからの改ざんを防ぐ
+      match /bpGrants/{gameId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
+      }
+      match /bpDaily/{dateKey} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
+      }
+      match /newsQuizAttempts/{dateKey} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
+      }
+    }
+
+    // ---- 📈 株式ニュースフォルダー ----
+    // 銘柄購読設定・レポート・実行履歴。いずれも本人だけが読み書きできる。
+    // 定期処理（GitHub Actions + Admin SDK）はこのルールの対象外なので、
+    // サーバー側からの書き込みには影響しない。
+    match /users/{uid}/stockSubscriptions/{ticker} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /users/{uid}/stockReports/{reportId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /users/{uid}/stockReportRuns/{runId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ---- 🃏 価値観ゲームの数字：クライアントからは一切読ませない ----
+    // ここに入るのは暗号文だが、そもそも読む必要がないので完全に閉じる。
+    // 配布・公開はサーバー（Admin SDK）経由でのみ行う。
+    match /vgSecrets/{docId} {
+      allow read, write: if false;
+    }
+
+    // ---- 🃏 オンラインルーム ----
+    // ログイン中のユーザーが読み書きできる。数字はここに入らない設計なので、
+    // ルームを読めても他人の数字は得られない。
+    match /vgRooms/{roomId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.hostId == request.auth.uid;
+      allow update, delete: if request.auth != null;
+
+      // 🎤 ボイスチャットの接続用の合図（SDP・ICE候補）。
+      // 音声そのものは参加者どうしが直接やり取りするので、ここを通らない。
+      // 読めるのは宛先本人だけ。書き込みは差出人が自分であることを求める。
+      // 処理した合図はすぐ削除するため、削除は誰でも行える。
+      match /signals/{signalId} {
+        allow read: if request.auth != null && resource.data.to == request.auth.uid;
+        allow create: if request.auth != null
+                      && request.resource.data.from == request.auth.uid;
+        allow delete: if request.auth != null;
+        allow update: if false;
+      }
+    }
+
+    // ---- 🤝 フレンド関係 ----
+    // 2人で1件のドキュメント（IDは2つのUIDを辞書順につないだもの）。
+    // 当事者だけが読み書きでき、第三者からは見えない。
+    // 作成時は「自分が申請者であること」「自分が当事者に含まれること」を求め、
+    // 他人どうしの関係を勝手に作れないようにする。
+    match /vgFriends/{pairId} {
+      allow read, delete: if request.auth != null
+                          && request.auth.uid in resource.data.members;
+      allow create: if request.auth != null
+                    && request.auth.uid in request.resource.data.members
+                    && request.resource.data.requestedBy == request.auth.uid
+                    && request.resource.data.status == 'pending';
+      // 承認（pending → accepted）は、申請を送った側以外だけが行える
+      allow update: if request.auth != null
+                    && request.auth.uid in resource.data.members
+                    && resource.data.requestedBy != request.auth.uid
+                    && request.resource.data.status == 'accepted';
+    }
+
+    // ---- 🤝 ルームへの招待 ----
+    // 宛先本人だけが読める。差出人は自分名義でのみ送れる。
+    // 受け取った側が表示後に削除する。
+    match /vgInvites/{inviteId} {
+      allow read, delete: if request.auth != null
+                          && resource.data.toUid == request.auth.uid;
+      allow create: if request.auth != null
+                    && request.resource.data.fromUid == request.auth.uid;
+      allow update: if false;
+    }
+
+    // ---- 公開ランキング：全員が読め、本人だけが自分の行を書ける ----
+    match /leaderboard/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ---- 問題ごとの正答率の集計：ログイン中なら加算できる ----
+    match /qstats/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // ---- ニュース：全員が読め、書き込みは管理者のみ ----
+    match /news/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.token.email == 'for.administ@gmail.com';
+    }
+
+    // ---- 表示名ディレクトリ・カレンダー通知：ログイン中なら利用できる ----
+    match /gcalNames/{email} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    match /calNotify/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ---- 日次ニュース検定の問題：読み取りのみ（作成はサーバー） ----
+    match /dailyQuiz/{dateKey} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

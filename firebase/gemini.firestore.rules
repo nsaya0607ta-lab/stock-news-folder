@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/geminiChats/{date} {
+      allow read, create, update, delete: if isOwner(userId);
+
+      match /messages/{messageId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+    }
+
+    match /users/{userId}/geminiSettings/{settingId} {
+      allow read, create, update, delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/pdfGenerationRules/{ruleId} {
+      allow read, create, update, delete: if isOwner(userId);
+    }
+
+    // 定期実行履歴はFirebase Adminだけが作成する。本人は結果を閲覧できる。
+    match /users/{userId}/pdfGenerationRuns/{runId} {
+      allow read: if isOwner(userId);
+      allow create, update, delete: if false;
+    }
+
+    /* --- 株式ニュースフォルダー --- */
+
+    // 銘柄購読設定。サーバー側の定期処理（Firebase Admin）はルールを経由せず読む。
+    match /users/{userId}/stockSubscriptions/{ticker} {
+      allow read, create, update, delete: if isOwner(userId);
+    }
+
+    // 生成されたレポート。定期実行分はAdminが作成し、
+    // 「今すぐ取得」で作った分だけ本人が書き込む。いずれも本人しか読めない。
+    match /users/{userId}/stockReports/{reportId} {
+      allow read, create, update, delete: if isOwner(userId);
+    }
+
+    // 実行履歴。定期実行分はAdminが書き、手動実行分は本人が書く。
+    match /users/{userId}/stockReportRuns/{runId} {
+      allow read, create, update, delete: if isOwner(userId);
+    }
+
+    // PDF本体の作成はFirebase Adminだけが行う。
+    // 本人はアプリへの取り込み完了状態だけを更新できる。
+    match /users/{userId}/geminiGeneratedPdfs/{pdfId} {
+      allow read: if isOwner(userId);
+      allow update: if isOwner(userId)
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['status', 'localFileId', 'importedAt', 'cleanupAt']);
+      allow create, delete: if false;
+    }
+  }
+}

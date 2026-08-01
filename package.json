@@ -1,0 +1,49 @@
+{
+  "name": "stock-news-folder",
+  "private": true,
+  "version": "1.0.0",
+  "description": "銘柄別の株式ニュースを収集・整理するPWAアプリ",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "prepare:assets": "node scripts/prepare-assets.mjs",
+    "dev": "npm run prepare:assets && next dev",
+    "build": "npm run prepare:assets && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:cloud": "node scripts/test-cloud-storage.cjs",
+    "test:classify": "node scripts/test-auto-classify.cjs",
+    "test:stock": "node scripts/test-stock-news.mjs",
+    "stock-news": "node scripts/stock-news/scheduler.mjs",
+    "stock-news:test": "node scripts/stock-news/test-core.mjs",
+    "ionq-report": "node scripts/ionq-report/generate.mjs",
+    "ionq-report:html": "node scripts/ionq-report/generate.mjs --html"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "lucide-react": "^0.545.0",
+    "next": "^15.5.4",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.4.149",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "firebase-admin": "^14.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "autoprefixer": "^10.4.20",
+    "fake-indexeddb": "^6.2.5",
+    "postcss": "8.5.23",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0",
+    "puppeteer": "^25.3.0"
+  },
+  "overrides": {
+    "postcss": "8.5.23",
+    "sharp": "0.35.3"
+  }
+}
