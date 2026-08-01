@@ -1,11 +1,10 @@
 name: 独立版コードの初回取り込み
 
 on:
-  push:
+  pull_request:
     branches: [main]
     paths:
-      - IMPORT_READY
-  workflow_dispatch:
+      - '.github/workflows/import-standalone.yml'
 
 permissions:
   contents: write
@@ -15,25 +14,41 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: リポジトリを取得
+      - name: 取り込みブランチを取得
         uses: actions/checkout@v5
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: 移行パッケージを取得
+      - name: 安全版の移行パッケージを取得
         shell: bash
-        env:
-          PACKAGE_URL: "https://sdmntprkoreacentral.oaiusercontent.com/files/00000000-19d4-8206-b1ef-9675ab824514/raw?se=2026-08-01T16:14:40Z&sp=r&sv=2026-02-06&sr=b&scid=ee4662bf-48a9-5bda-ad48-593349e66225&skoid=03727f49-62d3-42ac-8350-1c0e6559d238&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-08-01T02:10:02Z&ske=2026-08-02T02:10:02Z&sks=b&skv=2026-02-06&sig=9FsIEh%2BWguNk5O0iuRmcOjj28Uh2UaCRj6H22wqBU1k%3D"
         run: |
           set -euo pipefail
-          curl --fail --location --retry 3 "$PACKAGE_URL" --output "$RUNNER_TEMP/stock-news-folder-standalone.zip"
-          echo "712494b637ecd1c6e80678c6dc23a569677377e3fcca322088d5a2f7a27e71b1  $RUNNER_TEMP/stock-news-folder-standalone.zip" | sha256sum --check
+          curl --fail --location --retry 3 \
+            'https://raw.githubusercontent.com/nsaya0607ta-lab/my-app/agent/publish-stock-news-transfer-safe/transfer/stock-news-folder-ready-safe.zip' \
+            --output "$RUNNER_TEMP/stock-news-folder-ready-safe.zip"
           mkdir -p "$RUNNER_TEMP/imported"
-          unzip -q "$RUNNER_TEMP/stock-news-folder-standalone.zip" -d "$RUNNER_TEMP/imported"
-          test -f "$RUNNER_TEMP/imported/stock-news-folder/package.json"
-          test -f "$RUNNER_TEMP/imported/stock-news-folder/src/app/page.tsx"
+          unzip -q "$RUNNER_TEMP/stock-news-folder-ready-safe.zip" -d "$RUNNER_TEMP/imported"
+          ROOT="$RUNNER_TEMP/imported/stock-news-folder"
+          test -f "$ROOT/package.json"
+          test -f "$ROOT/src/app/page.tsx"
+          test -f "$ROOT/.github/workflows/ci.yml"
+          test -f "$ROOT/.github/workflows/stock-news-scheduler.yml"
+          ROOT="$ROOT" python - <<'PY'
+          import os
+          from pathlib import Path
+          workflow = (Path(os.environ['ROOT']) / '.github/workflows/stock-news-scheduler.yml').read_text('utf-8')
+          dollar = chr(36)
+          required = [
+              dollar + '{{ secrets.GEMINI_API_KEY }}',
+              dollar + '{{ secrets.ALPHA_VANTAGE_API_KEY }}',
+              dollar + '{{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}',
+          ]
+          if not all(marker in workflow for marker in required):
+              raise SystemExit('環境変数プレースホルダーの検査に失敗しました')
+          PY
 
-      - name: 独立版をリポジトリ直下へ配置
+      - name: アプリ本体をリポジトリ直下へ配置
         shell: bash
         run: |
           set -euo pipefail
@@ -42,7 +57,7 @@ jobs:
             --exclude 'node_modules/' \
             --exclude '.next/' \
             --exclude 'audit.json' \
-            --exclude '.github/workflows/import-standalone.yml' \
+            --exclude '.github/workflows/' \
             "$RUNNER_TEMP/imported/stock-news-folder/" "$GITHUB_WORKSPACE/"
 
       - name: コードをコミット
@@ -53,4 +68,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "株式ニュースフォルダーを独立リポジトリ化"
-          git push origin main
+          git push origin HEAD:${{ github.head_ref }}
