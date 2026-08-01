@@ -48,7 +48,7 @@ jobs:
               raise SystemExit('環境変数プレースホルダーの検査に失敗しました')
           PY
 
-      - name: 独立版をリポジトリ直下へ配置
+      - name: アプリ本体をリポジトリ直下へ配置
         shell: bash
         run: |
           set -euo pipefail
@@ -57,7 +57,7 @@ jobs:
             --exclude 'node_modules/' \
             --exclude '.next/' \
             --exclude 'audit.json' \
-            --exclude '.github/workflows/import-standalone.yml' \
+            --exclude '.github/workflows/' \
             "$RUNNER_TEMP/imported/stock-news-folder/" "$GITHUB_WORKSPACE/"
 
       - name: コードをコミット
